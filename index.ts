@@ -256,9 +256,6 @@ class SearchApi {
                 },
               }
             : {}),
-          // headers: {
-          //   "Content-Type": "application/json",
-          // },
           body: method !== "GET" ? JSON.stringify(params) : undefined,
         });
 
