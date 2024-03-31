@@ -17,7 +17,7 @@ npm install --save duckduckgo-search
 1. Import the module in your JavaScript file:
 
 ```javascript
-const duckduckgoSearch = require("duckduckgo-search");
+const duckDuckGoSearch = require("duckduckgo-search");
 ```
 
 2. Perform an image search using the `images` function:
@@ -49,7 +49,7 @@ Please note that the `duckduckgo-search` module returns results asynchronously u
 Here's a complete example of how you might use the `duckduckgo-search` module in your project:
 
 ```javascript
-const duckduckgoSearch = require("duckduckgo-search");
+const duckDuckGoSearch = require("duckduckgo-search");
 
 (async () => {
   // Image search
