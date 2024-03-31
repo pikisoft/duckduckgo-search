@@ -1,31 +1,51 @@
-const axios = require("axios");
+// Define a type for the payload used in _getUrl and images/text methods
+interface Payload {
+  [key: string]: any;
+}
+
+// Define a type for the image result
+interface ImageResult {
+  title: string;
+  image: string;
+  thumbnail: string;
+  url: string;
+  height: number;
+  width: number;
+  source: string;
+}
+
+// Define a type for the text result
+interface TextResult {
+  title: string;
+  href: string;
+  body: string;
+}
 
 // Simulating the sleep function
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Simulating the httpx._exceptions.HTTPError class
 class HTTPError extends Error {
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = "HTTPError";
   }
 }
 
 // Simulating the unescape function
-function unescape(text) {
-  // Replace &quot; with "
+function unescape(text: string): string {
   return text.replace(/&quot;/g, '"');
 }
 
 // Simulating the re.sub function
-function sub(pattern, replacement, text) {
+function sub(pattern: RegExp, replacement: string, text: string): string {
   return text.replace(pattern, replacement);
 }
 
 // Simulating the unquote function
-function unquote(url) {
+function unquote(url: string): string {
   return url; // Simulating unquoting
 }
 
@@ -33,22 +53,24 @@ const REGEX_STRIP_TAGS = /<[^>]*>/g;
 
 // Simulating the main class
 class SearchApi {
+  logger: Console;
+
   constructor() {
     // Simulating the logger
     this.logger = console;
   }
 
   async *images(
-    keywords,
-    region = "wt-wt",
-    safesearch = "moderate",
-    timelimit = null,
-    size = null,
-    color = null,
-    type_image = null,
-    layout = null,
-    license_image = null
-  ) {
+    keywords: string,
+    region: string = "wt-wt",
+    safesearch: string = "moderate",
+    timelimit: string | null = null,
+    size: string | null = null,
+    color: string | null = null,
+    type_image: string | null = null,
+    layout: string | null = null,
+    license_image: string | null = null
+  ): AsyncGenerator<ImageResult> {
     if (!keywords) {
       throw new Error("Keywords are mandatory");
     }
@@ -58,15 +80,12 @@ class SearchApi {
       throw new Error("Error in getting vqd");
     }
 
-    const safesearchBase = { on: 1, moderate: 1, off: -1 };
-    timelimit = timelimit ? `time:${timelimit}` : "";
-    size = size ? `size:${size}` : "";
-    color = color ? `color:${color}` : "";
-    type_image = type_image ? `type:${type_image}` : "";
-    layout = layout ? `layout:${layout}` : "";
-    license_image = license_image ? `license:${license_image}` : "";
-
-    const payload = {
+    const safesearchBase: { [key: string]: number } = {
+      on: 1,
+      moderate: 1,
+      off: -1,
+    };
+    const payload: Payload = {
       l: region,
       o: "json",
       s: 0,
@@ -76,7 +95,7 @@ class SearchApi {
       p: safesearchBase[safesearch.toLowerCase()],
     };
 
-    const cache = new Set();
+    const cache = new Set<string>();
     for (let _ = 0; _ < 10; _++) {
       const resp = await this._getUrl(
         "GET",
@@ -128,11 +147,11 @@ class SearchApi {
   }
 
   async *text(
-    keywords,
-    region = "wt-wt",
-    safesearch = "moderate",
-    timelimit = null
-  ) {
+    keywords: string,
+    region: string = "wt-wt",
+    safesearch: string = "moderate",
+    timelimit: string | null = null
+  ): AsyncGenerator<TextResult> {
     if (!keywords) {
       throw new Error("Keywords are mandatory");
     }
@@ -142,7 +161,7 @@ class SearchApi {
       throw new Error("Error in getting vqd");
     }
 
-    const payload = {
+    const payload: Payload = {
       q: keywords,
       kl: region,
       l: region,
@@ -162,7 +181,7 @@ class SearchApi {
       payload.p = "1";
     }
 
-    const cache = new Set();
+    const cache = new Set<string>();
     const searchPositions = ["0", "20", "70", "120"];
 
     for (const s of searchPositions) {
@@ -213,24 +232,70 @@ class SearchApi {
     }
   }
 
-  async _getUrl(method, url, params) {
+  async _getUrl(
+    method: string,
+    url: string,
+    params: Payload
+  ): Promise<{ data: any } | null> {
+    debugger;
+    const queryString = Object.keys(params)
+      .map(
+        (key) => encodeURIComponent(key) + "=" + encodeURIComponent(params[key])
+      )
+      .join("&");
+    const finalUrl = method === "GET" ? `${url}?${queryString}` : url;
+
     for (let i = 0; i < 3; i++) {
       try {
-        const resp = await axios.request({
-          method,
-          url,
-          [method === "GET" ? "params" : "data"]: params,
+        const response = await fetch(finalUrl, {
+          method: method,
+          ...(params.o === "json"
+            ? {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              }
+            : {}),
+          // headers: {
+          //   "Content-Type": "application/json",
+          // },
+          body: method !== "GET" ? JSON.stringify(params) : undefined,
         });
-        if (this._is500InUrl(resp.config.url) || resp.status === 202) {
+
+        if (this._is500InUrl(response.url) || response.status === 202) {
           throw new HTTPError("");
         }
-        if (resp.status === 200) {
-          return resp;
+        const contentType = response.headers.get("Content-Type");
+        console.log(contentType);
+
+        if (response.status === 200) {
+          // strategy is to assume that it's json first and then fallback to text
+          debugger;
+          try {
+            if (response.headers.get("Content-Type")?.includes("text/html")) {
+              const data = await response.text();
+              return { data };
+            }
+          } catch (error) {
+            // if it's not json, then it's text
+          }
+          try {
+            if (
+              response.headers.get("Content-Type")?.includes("application/json")
+            ) {
+              const data = await response.json();
+              return { data };
+            }
+          } catch (error) {
+            new Error("Response neither json nor text" + url);
+          }
         }
       } catch (ex) {
-        this.logger.warning(`_getUrl() ${url} ${ex.name} ${ex.message}`);
-        if (i >= 2 || ex.message.includes("418")) {
-          throw ex;
+        if (ex instanceof Error) {
+          this.logger.warn(`_getUrl() ${url} ${ex.name} ${ex.message}`);
+          if (i >= 2 || ex.message.includes("418")) {
+            throw ex;
+          }
         }
       }
       await sleep(3000);
@@ -238,12 +303,12 @@ class SearchApi {
     return null;
   }
 
-  async _getVqd(keywords) {
+  async _getVqd(keywords: string) {
     try {
       const resp = await this._getUrl("GET", "https://duckduckgo.com", {
         q: keywords,
       });
-      if (resp) {
+      if (typeof resp?.data === "string") {
         for (const [c1, c2] of [
           ['vqd="', '"'],
           ["vqd=", "&"],
@@ -254,7 +319,7 @@ class SearchApi {
             const end = resp.data.indexOf(c2, start);
             return resp.data.substring(start, end);
           } catch (error) {
-            this.logger.warning(`_getVqd() keywords=${keywords} vqd not found`);
+            this.logger.warn(`_getVqd() keywords=${keywords} vqd not found`);
           }
         }
       }
@@ -265,18 +330,18 @@ class SearchApi {
     return null;
   }
 
-  _is500InUrl(url) {
+  _is500InUrl(url: string): boolean {
     return url.includes("500");
   }
 
-  _normalize(rawHtml) {
+  _normalize(rawHtml: string): string {
     if (rawHtml) {
       return unescape(sub(REGEX_STRIP_TAGS, "", rawHtml));
     }
     return "";
   }
 
-  _normalizeUrl(url) {
+  _normalizeUrl(url: string): string {
     if (url) {
       return unquote(url).replace(" ", "+");
     }
@@ -284,4 +349,4 @@ class SearchApi {
   }
 }
 
-module.exports = new SearchApi();
+export default new SearchApi();
