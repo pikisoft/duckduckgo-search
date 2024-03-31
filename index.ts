@@ -237,7 +237,6 @@ class SearchApi {
     url: string,
     params: Payload
   ): Promise<{ data: any } | null> {
-    debugger;
     const queryString = Object.keys(params)
       .map(
         (key) => encodeURIComponent(key) + "=" + encodeURIComponent(params[key])
@@ -262,12 +261,9 @@ class SearchApi {
         if (this._is500InUrl(response.url) || response.status === 202) {
           throw new HTTPError("");
         }
-        const contentType = response.headers.get("Content-Type");
-        console.log(contentType);
 
         if (response.status === 200) {
           // strategy is to assume that it's json first and then fallback to text
-          debugger;
           try {
             if (response.headers.get("Content-Type")?.includes("text/html")) {
               const data = await response.text();

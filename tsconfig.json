@@ -5,7 +5,6 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
     "declaration": true
   }
 }
